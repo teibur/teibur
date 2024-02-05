@@ -11,15 +11,7 @@
 
 //402105892
 
-// redo
-// status
-
-//tag
-
-
-int args;
 FILE *last_add;
-
 
 char *repository_address(){
     char *return_value = (char *)malloc(1000);
@@ -141,6 +133,26 @@ char *commit_path(char address[], char hash[]){
 }
 
 
+char *minus_one(char in_string[]){
+    int in_int;
+    sscanf(in_string, "%d", &in_int);
+    in_int--;
+    sprintf(in_string, "%d", in_int);
+    return in_string;
+}
+
+
+char *last_commit(){
+    char id_txt[1000];
+    strcpy(id_txt, master());
+    strcat(id_txt, "/id.txt");
+    FILE *id_file_ = fopen(id_txt, "r");
+    char last_id[10];
+    fgets(last_id, 5, id_file_);
+    return minus_one(last_id);
+}
+
+
 char *last_commit_in_branch(char branch_p[]){
     char temp[1000];
     getcwd(temp, sizeof(temp));
@@ -163,21 +175,6 @@ char *last_commit_in_branch(char branch_p[]){
 
 
 int is_same_file(char first[], char second[]){
-    // FILE *file1 = fopen(first, "r");
-    // FILE *file2 = fopen(second, "r");
-    // if(file1 == NULL && file2 == NULL) perror("Cant open file");
-    // if(file1 == NULL || file2 == NULL) return 0;
-    // char char1;
-    // char char2;
-    // do{
-    //     char1 = fgetc(file1);
-    //     char2 = fgetc(file2);
-    //     if (char1 != char2)
-    //         return 0;
-    // }while(char1 != EOF && char2 != EOF);
-    // if (char1 == EOF && char2 == EOF)
-    //     return 1;
-    // return 0;
     FILE *file1 = fopen(first, "rb");
     FILE *file2 = fopen(second, "rb");
     if(file1 == NULL && file2 == NULL) perror("Cant open file");
@@ -380,25 +377,6 @@ int add_directory(char token[], char repo_r[]){
 }
 
 
-// int list_unstaged(char direc[], int depth){
-//     depth--;
-//     DIR *dir = opendir(file_address);
-//     struct dirent *entry;
-//     while((entry = readdir(dir)) != NULL){
-//         if(entry->d_name[0] == '-'){
-//             for(int i = 0; i < dashes; i++)
-//                 printf("-");
-//             puts(entry->d_name);
-//             char file_address_again[1000];
-//             strcpy(file_address_again, file_address);
-//             strcat(file_address_again, "/");
-//             strcat(file_address_again, entry->d_name);
-//             list_branch(file_address_again, dashes);
-//         }
-//     }
-// }
-
-
 int add_n(char direc[], int depth, int first_depth){
     depth--;
     if(depth < 0)
@@ -497,7 +475,7 @@ int add(char file_or_directory[], char repo[]){
     char *token = strtok(relative, "/");
     int exist = 1;
     FILE *check = fopen(file_or_directory, "r");
-    if(chdir(file_or_directory) != 0 || check == NULL)   
+    if(chdir(file_or_directory) != 0 && check == NULL)   
         exist = 0;
     chdir(repo);
     if(exist){
@@ -519,6 +497,36 @@ int add(char file_or_directory[], char repo[]){
         sprintf(command, "rm -r \"%s\"", relative_path(file_or_directory));
         system(command);
     }
+}
+
+
+int redo(){
+    char temp[1000];
+    getcwd(temp, 1000);
+    char repo[1000];
+    chdir(repository_address());
+    chdir("../");
+    getcwd(repo, 1000);
+    struct dirent *entry;
+    DIR *dir = opendir(".");
+    while((entry = readdir(dir)) != NULL){
+        if(entry->d_name[0] != '.'){
+            char command[2000];
+            sprintf(command, "rm -r \"%s\"", entry->d_name);
+            system(command);
+        }
+    }
+    closedir(dir);
+    chdir(staging_area());
+    dir = opendir(".");
+    while((entry = readdir(dir)) != NULL){
+        if(entry->d_name[0] != '.'){
+            char command[2000];
+            sprintf(command, "cp -r \"%s\" \"%s\"", entry->d_name, repo);
+            system(command);
+        }
+    }
+    return 0;
 }
 
 
@@ -578,52 +586,117 @@ int reset(char path[]){
 }
 
 
-int status(char filename[], char just_name[]){
+int status(char path[], int tabs[]){
     char in_commit[1000];
-    strcpy(in_commit, last_commit_in_branch(current_branch()));
-    strcat(in_commit, "/");
-    strcat(in_commit, filename);
+    chdir(last_commit_in_branch(current_branch()));
+    chdir(path);
+    getcwd(in_commit, sizeof(in_commit));
     char in_staging[1000];
-    strcpy(in_staging, staging_area());
-    strcat(in_staging, "/");
-    strcat(in_staging, filename);
+    chdir(staging_area());
+    chdir(path);
+    getcwd(in_staging, sizeof(in_staging));
     char in_repo[1000];
     strcpy(in_repo, repository_address());
-    in_repo[strlen(in_repo) - 7] = '\0';
-    strcat(in_repo, filename);
-    FILE *file = fopen(in_commit, "r");
-    if(file == NULL){
-        if(is_same_file(in_repo, in_staging))
-            printf("%s +A\n", just_name);
-        else printf("%s -A\n", just_name);
-        return 0;
-    }
-    if(!is_same_file(in_commit, in_repo)){
-        if(is_same_file(in_repo, in_staging))
-            printf("%s +M\n", just_name);
-        else printf("%s -M\n", just_name);
-        return 0;
+    in_repo[strlen(in_repo) - 8] = '\0';
+    chdir(in_repo);
+    chdir(path);
+    getcwd(in_repo, sizeof(in_repo));
+    DIR *dir = opendir(in_repo);
+    struct dirent *entry;
+    while((entry = readdir(dir)) != NULL){
+        if(entry->d_name[0] == '.')
+            continue;
+        if(entry->d_type == DT_DIR){
+            char entry_repo[1000];
+            strcpy(entry_repo, in_repo);
+            strcat(entry_repo, "/");
+            strcat(entry_repo, entry->d_name);
+            status(relative_path(entry_repo), 0);
+        }else{
+            char entry_repo[1000];
+            strcpy(entry_repo, in_repo);
+            strcat(entry_repo, "/");
+            strcat(entry_repo, entry->d_name);
+            char entry_staging[1000];
+            strcpy(entry_staging, in_staging);
+            strcat(entry_staging, "/");
+            strcat(entry_staging, entry->d_name);
+            char entry_commit[1000];
+            strcpy(entry_commit, in_commit);
+            strcat(entry_commit, "/");
+            strcat(entry_commit, entry->d_name);
+            FILE *file = fopen(entry_commit, "r");
+            if(file == NULL){
+                if(is_same_file(entry_repo, entry_staging))
+                    printf("%s +A\n", relative_path(entry_repo));
+                else printf("%s -A\n", relative_path(entry_repo));
+            }else if(!is_same_file(entry_commit, entry_repo)){
+                if(is_same_file(entry_repo, entry_staging))
+                    printf("%s +M\n", relative_path(entry_repo));
+                else printf("%s -M\n", relative_path(entry_repo));
+            }
+        }
     }
     return 0;
 }
 
 
-int status_deleted(char filename[], char just_name[]){
+int status_deleted(char path[], char just_name[]){
+    char in_commit[1000];
+    chdir(last_commit_in_branch(current_branch()));
+    chdir(path);
+    getcwd(in_commit, sizeof(in_commit));
+    char in_staging[1000];
+    strcpy(in_staging, staging_area());
+    if(strcmp(path, ".") == 0){
+        chdir(staging_area());
+        chdir(path);
+        getcwd(in_staging, sizeof(in_staging));
+    }else{
+        strcat(in_staging, "/");
+        strcat(in_staging, path);
+    }
     char in_repo[1000];
     strcpy(in_repo, repository_address());
-    in_repo[strlen(in_repo) - 7] = '\0';
-    strcat(in_repo, filename);
-    char in_staging[1000];
-    strcpy(in_staging, repository_address());
-    strcat(in_staging, "/staging area/");
-    strcat(in_staging, filename);
-    FILE *file = fopen(in_repo, "r");
-    if(file != NULL)
-        return 0;
-    file = fopen(in_staging, "r");
-    if(file == NULL)
-        printf("%s +D\n", just_name);
-    else printf("%s -D\n", just_name);
+    in_repo[strlen(in_repo) - 8] = '\0';
+    if(strcmp(path, ".") == 0){
+        chdir(in_repo);
+        chdir(path);
+        getcwd(in_repo, sizeof(in_repo));
+    }else{
+        strcat(in_repo, "/");
+        strcat(in_repo, path);
+    }
+
+    DIR *dir = opendir(in_commit);
+    struct dirent *entry;
+    while((entry = readdir(dir)) != NULL){
+        if(entry->d_name[0] == '.')
+            continue;
+        if(entry->d_type == DT_DIR){
+            char entry_repo[1000];
+            strcpy(entry_repo, in_repo);
+            strcat(entry_repo, "/");
+            strcat(entry_repo, entry->d_name);
+            status_deleted(relative_path(entry_repo), 0);
+        }else{
+            char entry_repo[1000];
+            strcpy(entry_repo, in_repo);
+            strcat(entry_repo, "/");
+            strcat(entry_repo, entry->d_name);
+            char entry_staging[1000];
+            strcpy(entry_staging, in_staging);
+            strcat(entry_staging, "/");
+            strcat(entry_staging, entry->d_name);
+            FILE *file = fopen(entry_repo, "r");
+            if(file != NULL)
+                continue;
+            file = fopen(entry_staging, "r");
+            if(file == NULL)
+                printf("%s +D\n", relative_path(entry_repo));
+            else printf("%s -D\n", relative_path(entry_repo));
+        }
+    }
 }
 
 
@@ -731,6 +804,48 @@ int remove_shortcut(char shortcut_name[]){
     char command[2000];
     sprintf(command, "rm \"%s\"", shortcut_path);
     system(command);
+}
+
+
+int print_log(char commit_p[], char branch_[], char author[], char search[]){
+    chdir(commit_p);
+    chdir("../");
+    char temp1[1000];
+    getcwd(temp1, 1000);
+    char id[10];
+    strcpy(id, relative_path2(commit_p, temp1));
+    chdir("../");
+    char temp2[1000];
+    getcwd(temp2, 1000);
+    char branch[100];
+    strcpy(branch, relative_path2(temp1, temp2));
+    if(strcmp(branch, "master") != 0){
+        strcpy(branch, branch + 1);
+    }
+    if(branch_ != NULL){
+        if(strcmp(branch_, branch) != 0)
+            return 0;
+    }
+    strcat(commit_p, ".txt");
+    FILE *info = fopen(commit_p, "r");
+    char message[100];
+    char time[100];
+    char author_name[100];
+    char author_email[100];
+    fgets(author_name, 100, info);
+    fgets(author_email, 100, info);
+    fgets(message, 100, info);
+    fgets(time, 100, info);
+    author_name[strlen(author_name) - 1] = '\0';
+    if(author != NULL){
+        if(strcmp(author, author_name) != 0)
+            return 0;
+    }
+    if(search != NULL){
+        if(strstr(message, search) == 0)
+            return 0;
+    }
+    printf("%stime : %sid : %s\nauthor name : %s\nauthor email : %sbranch : %s\n\n", message, time, id, author_name, author_email, branch);
 }
 
 
@@ -979,13 +1094,16 @@ int main(int argc, char *argv[]){
         }
         char cwd[1000];
         getcwd(cwd, sizeof(cwd));
+        if(strcmp(argv[2], "-redo") == 0){
+            redo();
+            return 0;
+        }
         if(strcmp(argv[2], "-f") == 0){
             for(int i = 3; i < argc; i++){
                 chdir(cwd);
                 char real_arg[1000];
                 realpath(argv[i], real_arg);
                 add(real_arg, repository_address());
-                args = argc - 3;
             }
         }if(strcmp(argv[2], "-n") == 0){
             char real_arg[1000];
@@ -999,7 +1117,6 @@ int main(int argc, char *argv[]){
                 char real_arg[1000];
                 realpath(argv[i], real_arg);
                 add(real_arg, repository_address());
-                args = argc - 2;
             }
         }
     }else if(strcmp(argv[1], "reset") == 0){
@@ -1041,28 +1158,12 @@ int main(int argc, char *argv[]){
         }
         char cwd[1000];
         getcwd(cwd, sizeof(cwd));
-        struct dirent *entry;
-        DIR *dir = opendir(".");
-        while((entry = readdir(dir)) != NULL){
-            if(entry->d_type != DT_DIR){
-                char entry_path[1000];
-                realpath(entry->d_name, entry_path);
-                status(relative_path(entry_path), entry->d_name);
-            }
-        }
-        chdir(last_commit_in_branch(current_branch()));
-        char tmp[1000];
-        strcpy(tmp, relative_path(cwd));
-        if(chdir(tmp) != 0)
-            return 0;
-        dir = opendir(".");
-        while((entry = readdir(dir)) != NULL){
-            if(entry->d_type != DT_DIR){
-                char entry_path[1000];
-                realpath(entry->d_name, entry_path);
-                status_deleted(relative_path2(entry_path, last_commit_in_branch(current_branch())), entry->d_name);
-            }
-        }
+        char repo[1000];
+        strcpy(repo, repository_address());
+        repo[strlen(repo) - 8] = '\0';
+        status(".", 0);
+        status_deleted(".", 0);
+        return 0;
     }else if(strcmp(argv[1], "commit") == 0){
         if(repository_address() == NULL){
             perror("You are not in a repository");
@@ -1101,6 +1202,57 @@ int main(int argc, char *argv[]){
         replace_shortcut(argv[3], argv[5]);
     }else if(strcmp(argv[1], "remove") == 0 && strcmp(argv[2], "-s") == 0 && argc == 4){
         remove_shortcut(argv[3]);
+    }else if(strcmp(argv[1], "log") == 0){
+        if(argc == 2){
+            char iidd[10];
+            strcpy(iidd, last_commit());
+            while(strcmp(iidd, "3426") != 0){
+                print_log(commit_path(master(), iidd), NULL, NULL, NULL);
+                strcpy(iidd, minus_one(iidd));
+            }
+        }else if(argc == 4){
+            if(strcmp(argv[2], "-n") == 0){
+                int n;
+                sscanf(argv[3], "%d", &n);
+                char iidd[10];
+                strcpy(iidd, last_commit());
+                for(int i = 0; i < n; i++){
+                    if(strcmp(iidd, "3426") == 0)
+                        break;
+                    print_log(commit_path(master(), iidd), NULL, NULL, NULL);
+                    strcpy(iidd, minus_one(iidd));
+                }
+            }else if(strcmp(argv[2], "-branch") == 0){
+                char iidd[10];
+                strcpy(iidd, last_commit());
+                char checkexist[100] = "-";
+                strcat(checkexist, argv[3]);
+                if(!branch_exist(master(), checkexist) && strcmp(argv[3], "master") != 0){
+                    perror("Branch doesn't exist");
+                    return 1;
+                }
+                while(strcmp(iidd, "3426") != 0){
+                    print_log(commit_path(master(), iidd), argv[3], NULL, NULL);
+                    strcpy(iidd, minus_one(iidd));
+                }
+            }else if(strcmp(argv[2], "-author") == 0){
+                char iidd[10];
+                strcpy(iidd, last_commit());
+                while(strcmp(iidd, "3426") != 0){
+                    print_log(commit_path(master(), iidd), NULL, argv[3], NULL);
+                    strcpy(iidd, minus_one(iidd));
+                }
+            }else if(strcmp(argv[2], "-search") == 0){
+                char iidd[10];
+                strcpy(iidd, last_commit());
+                while(strcmp(iidd, "3426") != 0){
+                    print_log(commit_path(master(), iidd), NULL, NULL, argv[3]);
+                    strcpy(iidd, minus_one(iidd));
+                }
+            }
+        }else{
+            perror("invalid command");
+        }
     }else if(strcmp(argv[1], "branch") == 0){
         if(repository_address() == NULL){
             perror("You are not in a repository");
